@@ -3,7 +3,7 @@ import pandas as pd
 import os
 from playwright.async_api import async_playwright
 
-samples_file = r"C:/Users/ilhas/Downloads/MAPG25_SAMPLES.txt"
+samples_file = r"/MAPG25_SAMPLES.txt"
 target_sample = os.getenv("TARGET_SAMPLE", "")
 target_coords = os.getenv("TARGET_COORDS", "")
 output_csv    = os.getenv("OUTPUT_CSV", "distancesG25.csv")
@@ -79,10 +79,11 @@ async def main():
         # Salvar em CSV
         df = pd.DataFrame(results, columns=["Distance","Population"])
         df.to_csv(output_csv, index=False)
-        print(f"Arquivo '{output_csv}' criado com sucesso!")
+        print(f"File '{output_csv}' created successfully!")
 
         await browser.close()
 
 asyncio.run(main())
+
 
 
