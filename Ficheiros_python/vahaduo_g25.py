@@ -10,7 +10,7 @@ output_csv    = os.getenv("OUTPUT_CSV", "distancesG25.csv")
 
 async def main():
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False)
+        browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
         await page.goto("https://vahaduo.github.io/vahaduo/")
 
@@ -84,6 +84,7 @@ async def main():
         await browser.close()
 
 asyncio.run(main())
+
 
 
 
