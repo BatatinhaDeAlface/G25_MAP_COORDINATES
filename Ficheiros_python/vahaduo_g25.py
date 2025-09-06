@@ -9,47 +9,111 @@ target_coords = os.getenv("TARGET_COORDS", "")
 output_csv = os.getenv("OUTPUT_CSV", "distancesG25.csv")
 
 async def upload_file_safely(page, file_path):
-    """Upload de arquivo com verificações de segurança"""
+    """Upload de arquivo com verificações de segurança e múltiplas tentativas"""
     try:
         # Verificar se o arquivo existe
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"Arquivo não encontrado: {file_path}")
         
+        print(f"📁 Iniciando upload de: {file_path}")
+        
         # Aguardar página carregar completamente
         await page.wait_for_load_state("networkidle")
+        await page.wait_for_timeout(2000)
         
-        # Localizar o elemento
-        locator = page.locator("input#localfiles")
-        
-        # Aguardar elemento estar visível e anexado ao DOM
-        await locator.wait_for(state="attached", timeout=30000)
-        await locator.wait_for(state="visible", timeout=30000)
-        
-        # Scroll para garantir que está na viewport
-        await locator.scroll_into_view_if_needed()
-        
-        # Upload do arquivo com timeout aumentado
-        await locator.set_input_files(file_path, timeout=60000)
-        
-        print(f"✅ Upload realizado com sucesso: {file_path}")
-        
-    except Exception as e:
-        print(f"❌ Erro no upload: {e}")
-        # Tentativa alternativa: forçar visibilidade via JavaScript
+        # MÉTODO 1: Tentativa padrão
         try:
+            print("🔄 Tentativa 1: Upload padrão")
+            locator = page.locator("input#localfiles")
+            await locator.wait_for(state="attached", timeout=15000)
+            
+            # Forçar visibilidade via JavaScript ANTES de tentar
             await page.evaluate("""
                 const input = document.querySelector('input#localfiles');
                 if (input) {
                     input.style.display = 'block';
                     input.style.visibility = 'visible';
                     input.style.opacity = '1';
+                    input.style.position = 'static';
+                    input.removeAttribute('hidden');
                 }
             """)
+            
             await page.wait_for_timeout(1000)
-            await locator.set_input_files(file_path, timeout=60000)
-            print(f"✅ Upload realizado com método alternativo: {file_path}")
+            await locator.set_input_files(file_path, timeout=30000)
+            print(f"✅ Upload realizado com sucesso (Método 1): {file_path}")
+            return
+            
+        except Exception as e1:
+            print(f"⚠️ Método 1 falhou: {e1}")
+        
+        # MÉTODO 2: Upload via JavaScript
+        try:
+            print("🔄 Tentativa 2: Upload via JavaScript")
+            
+            # Ler o arquivo
+            with open(file_path, 'r', encoding='utf-8') as f:
+                file_content = f.read()
+            
+            # Criar um blob e simular upload via JavaScript
+            await page.evaluate(f"""
+                const input = document.querySelector('input#localfiles');
+                const file = new File([`{file_content}`], '{os.path.basename(file_path)}', {{
+                    type: 'text/plain'
+                }});
+                
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                input.files = dataTransfer.files;
+                
+                // Disparar evento de mudança
+                const event = new Event('change', {{ bubbles: true }});
+                input.dispatchEvent(event);
+            """)
+            
+            print(f"✅ Upload realizado com sucesso (Método 2): {file_path}")
+            return
+            
         except Exception as e2:
-            raise Exception(f"Falha no upload após tentativa alternativa: {e2}")
+            print(f"⚠️ Método 2 falhou: {e2}")
+        
+        # MÉTODO 3: Forçar interação via coordenadas
+        try:
+            print("🔄 Tentativa 3: Upload por coordenadas")
+            
+            # Tornar elemento visível e obter posição
+            await page.evaluate("""
+                const input = document.querySelector('input#localfiles');
+                input.style.position = 'fixed';
+                input.style.top = '100px';
+                input.style.left = '100px';
+                input.style.width = '200px';
+                input.style.height = '50px';
+                input.style.display = 'block';
+                input.style.visibility = 'visible';
+                input.style.opacity = '1';
+                input.style.zIndex = '9999';
+            """)
+            
+            await page.wait_for_timeout(1000)
+            
+            # Usar set_input_files em coordenadas específicas
+            await page.set_input_files("input#localfiles", file_path)
+            print(f"✅ Upload realizado com sucesso (Método 3): {file_path}")
+            return
+            
+        except Exception as e3:
+            print(f"⚠️ Método 3 falhou: {e3}")
+            
+        # Se todos os métodos falharam
+        raise Exception("Todos os métodos de upload falharam")
+        
+    except Exception as final_error:
+        print(f"💥 ERRO CRÍTICO no upload: {final_error}")
+        # Screenshot para debug
+        await page.screenshot(path="upload_error.png")
+        print("📸 Screenshot salvo como 'upload_error.png'")
+        raise
 
 async def wait_for_button_and_click(page, selector, description="", timeout=30000):
     """Aguardar botão estar disponível e clicar com logs"""
